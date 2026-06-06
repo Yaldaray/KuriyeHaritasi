@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kuriye Haritası - Rota Optimizasyonu</title>
-    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places,geometry"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDummyKeyPlaceholder&libraries=places,geometry&callback=initMap" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
     <style>
         * {
@@ -905,6 +905,42 @@
             document.getElementById('totalDistance').textContent = totalDistance.toFixed(2) + ' km';
         }
 
+        // Delete Address
+        function deleteAddress(id) {
+            addresses = addresses.filter(addr => addr.id !== id);
+            renderAddresses();
+            updateMap();
+            showNotification('Adres silindi', 'success');
+        }
+
+        // Edit Address
+        function editAddress(id) {
+            const addr = addresses.find(a => a.id === id);
+            if (!addr) return;
+
+            const newAddress = prompt('Adresi düzenleyin:', addr.address);
+            if (newAddress && newAddress.trim()) {
+                addr.address = newAddress.trim();
+                geocodeAddress(addr);
+                renderAddresses();
+            }
+        }
+
+        // Show on Map
+        function showOnMap(id) {
+            const addr = addresses.find(a => a.id === id);
+            if (!addr || !addr.lat || !addr.lng) return;
+
+            map.setCenter({ lat: addr.lat, lng: addr.lng });
+            map.setZoom(16);
+
+            // Remove active class from all items
+            document.querySelectorAll('.address-item').forEach(item => item.classList.remove('active'));
+            // Add active class to current item
+            const item = document.getElementById(`addr-${id}`);
+            if (item) item.classList.add('active');
+        }
+
         // Optimize Route
         function optimizeRoute() {
             if (addresses.length < 2) {
@@ -1010,6 +1046,7 @@
                 map: map
             });
 
+            // Fit map to bounds
             fitMapToAddresses();
         }
 
@@ -1019,70 +1056,41 @@
 
             const bounds = new google.maps.LatLngBounds();
             addresses.forEach(addr => {
-                bounds.extend(new google.maps.LatLng(addr.lat, addr.lng));
+                bounds.extend({ lat: addr.lat, lng: addr.lng });
             });
 
             map.fitBounds(bounds);
         }
 
-        // Center Map
+        // Center Map to Current Location
         function centerMapToCurrentLocation() {
-            if (userLocation) {
-                map.setCenter(userLocation);
-                map.setZoom(15);
-            } else {
-                getGPS();
+            if (!userLocation) {
+                showNotification('Konum alınamadı', 'error');
+                return;
             }
+
+            map.setCenter(userLocation);
+            map.setZoom(16);
         }
 
-        // Show on Map
-        function showOnMap(addressId) {
-            const address = addresses.find(a => a.id === addressId);
-            if (address && address.lat && address.lng) {
-                map.setCenter({ lat: address.lat, lng: address.lng });
-                map.setZoom(16);
-            }
-        }
-
-        // Delete Address
-        function deleteAddress(addressId) {
-            addresses = addresses.filter(a => a.id !== addressId);
-            renderAddresses();
-            updateMap();
-            showNotification('Adres silindi', 'success');
-        }
-
-        // Edit Address
-        function editAddress(addressId) {
-            const address = addresses.find(a => a.id === addressId);
-            if (address) {
-                document.getElementById('addressInput').value = address.address;
-                document.getElementById('customerName').value = address.name;
-                document.getElementById('packageCount').value = address.packages;
-                deleteAddress(addressId);
-            }
-        }
-
-        // Clear All
-        function clearAllAddresses() {
-            if (confirm('Tüm adresleri silmek istediğinize emin misiniz?')) {
-                addresses = [];
-                renderAddresses();
-                updateMap();
-                markers.forEach(m => m.setMap(null));
-                markers = [];
-                if (polyline) polyline.setMap(null);
-                showNotification('Tüm adresler silindi', 'success');
-            }
-        }
-
-        // Utility Functions
+        // Update Map Center
         function updateMapCenter() {
             if (userLocation) {
                 map.setCenter(userLocation);
             }
         }
 
+        // Clear All Addresses
+        function clearAllAddresses() {
+            if (confirm('Tüm adresleri silmek istediğinize emin misiniz?')) {
+                addresses = [];
+                renderAddresses();
+                updateMap();
+                showNotification('Tüm adresler silindi', 'success');
+            }
+        }
+
+        // Loading Functions
         function showLoading(text = 'Yükleniyor...') {
             document.getElementById('loadingText').textContent = text;
             document.getElementById('loading').classList.add('active');
@@ -1092,28 +1100,22 @@
             document.getElementById('loading').classList.remove('active');
         }
 
+        // Notification Functions
         function showNotification(message, type = 'info') {
-            const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.className = 'notification active ' + type;
+            const notif = document.getElementById('notification');
+            notif.textContent = message;
+            notif.className = 'notification active ' + type;
 
             setTimeout(() => {
-                notification.classList.remove('active');
+                notif.classList.remove('active');
             }, 3000);
         }
 
+        // Modal Functions
         function closeModal() {
             document.getElementById('modal').classList.remove('active');
+            document.getElementById('photoInput').value = '';
         }
-
-        // Initialize on page load
-        window.addEventListener('load', function() {
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', initMap);
-            } else {
-                initMap();
-            }
-        });
     </script>
 </body>
 </html>
