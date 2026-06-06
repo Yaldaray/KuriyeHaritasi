@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kuriye Haritası - Rota Optimizasyonu</title>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places,geometry"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            height: 90vh;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+        }
+
+        /* Left Panel - Address Management */
+        .panel {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .panel h1 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel h1 i {
+            font-size: 28px;
+        }
+
+        /* Input Section */
+        .input-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="file"],
+        textarea {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        input[type="file"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.2);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            flex: 1;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-small {
+            padding: 8px 12px;
+            font-size: 12px;
+            flex: none;
+        }
+
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff5252;
+        }
+
+        .btn-success {
+            background: #51cf66;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #40c057;
+        }
+
+        /* GPS Section */
+        .gps-section {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .gps-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .gps-item {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .gps-label {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .gps-value {
+            font-size: 14px;
+            color: #333;
+            margin-top: 4px;
+            word-break: break-all;
+        }
+
+        /* Address List */
+        .address-list {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .address-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .address-item:hover {
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transform: translateX(5px);
+        }
+
+        .address-item.active {
+            border-left-color: #51cf66;
+            background: #e7f5ee;
+        }
+
+        .address-order {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+
+        .address-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .address-text {
+            flex: 1;
+        }
+
+        .address-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .address-details {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .distance-info {
+            font-size: 11px;
+            background: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: #764ba2;
+            font-weight: 600;
+            white-space: nowrap;
+            margin-left: auto;
+        }
+
+        .address-controls {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* Stats Section */
+        .stats-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+            text-transform: uppercase;
+        }
+
+        /* Right Panel - Map */
+        .map-panel {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #map {
+            flex: 1;
+            min-height: 400px;
+        }
+
+        .map-controls {
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* Loading Indicator */
+        .loading {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 1000;
+            min-width: 250px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        /* Camera Input */
+        .camera-preview {
+            width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            margin: 10px 0;
+            background: #f0f0f0;
+        }
+
+        /* Notifications */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1001;
+            animation: slideIn 0.3s ease;
+        }
+
+        .notification.active {
+            display: block;
+        }
+
+        .notification.success {
+            border-left: 4px solid #51cf66;
+        }
+
+        .notification.error {
+            border-left: 4px solid #ff6b6b;
+        }
+
+        .notification.info {
+            border-left: 4px solid #667eea;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .panel, .map-panel {
+                min-height: 500px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .input-group {
+                flex-direction: column;
+            }
+
+            .stats-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Title and Header */
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        /* Optimized Route Badge */
+        .route-badge {
+            display: inline-block;
+            background: #51cf66;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .no-addresses {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .no-addresses svg {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📍 Kuriye Haritası</h1>
+        <p>Otomatik Rota Optimizasyonu Sistemi</p>
+    </div>
+
+    <div class="container">
+        <!-- Left Panel: Address Management -->
+        <div class="panel">
+            <h1>📬 Adres Yönetimi</h1>
+
+            <!-- GPS Section -->
+            <div class="gps-section">
+                <button class="btn-secondary" style="width: 100%; margin-bottom: 10px;" onclick="getGPS()">
+                    📍 GPS Konumunu Al
+                </button>
+                <div class="gps-info">
+                    <div class="gps-item">
+                        <div class="gps-label">Latitude</div>
+                        <div class="gps-value" id="gpsLat">-</div>
+                    </div>
+                    <div class="gps-item">
+                        <div class="gps-label">Longitude</div>
+                        <div class="gps-value" id="gpsLng">-</div>
+                    </div>
+                    <div class="gps-item">
+                        <div class="gps-label">Doğruluk</div>
+                        <div class="gps-value" id="gpsAccuracy">-</div>
+                    </div>
+                    <div class="gps-item">
+                        <div class="gps-label">Yükseklik</div>
+                        <div class="gps-value" id="gpsAltitude">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Section -->
+            <div class="input-section">
+                <h3 style="color: #333; font-size: 14px; margin-bottom: 10px;">Adres Ekleme Yöntemleri</h3>
+                
+                <!-- Manual Input -->
+                <div>
+                    <input type="text" id="addressInput" placeholder="Adres yazınız (örn: Ankara Caddesi No:123)">
+                </div>
+
+                <div class="input-group">
+                    <input type="text" id="customerName" placeholder="Müşteri Adı">
+                    <input type="number" id="packageCount" placeholder="Paket Sayısı" min="1" value="1">
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="addAddress()">➕ Adres Ekle</button>
+                </div>
+
+                <!-- Photo Input -->
+                <div style="border-top: 2px solid #f0f0f0; padding-top: 15px;">
+                    <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #333; font-size: 14px;">
+                        📸 Fotoğraftan Adres Çıkar
+                    </label>
+                    <input type="file" id="photoInput" accept="image/*" onchange="handlePhotoUpload(event)">
+                    <div style="font-size: 12px; color: #999; margin-top: 8px;">
+                        Adres içeren fotoğraf yükleyin, otomatik olarak metni çıkarılacak
+                    </div>
+                </div>
+
+                <button class="btn-secondary" style="width: 100%; margin-top: 10px;" onclick="document.getElementById('photoInput').click()">
+                    📷 Kamera ile Çek
+                </button>
+            </div>
+
+            <!-- Stats Section -->
+            <div class="stats-section">
+                <div class="stat-item">
+                    <div class="stat-value" id="totalAddresses">0</div>
+                    <div class="stat-label">Toplam Adres</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="totalDistance">0 km</div>
+                    <div class="stat-label">Toplam Mesafe</div>
+                </div>
+            </div>
+
+            <!-- Optimization Controls -->
+            <div class="button-group">
+                <button class="btn-success" onclick="optimizeRoute()">🚀 Rotayı Optimize Et</button>
+                <button class="btn-danger btn-small" onclick="clearAllAddresses()">🗑️ Temizle</button>
+            </div>
+
+            <!-- Address List -->
+            <div class="address-list" id="addressList">
+                <div class="no-addresses">
+                    <p>Henüz adres eklenmemiştir</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Map -->
+        <div class="map-panel">
+            <div id="map"></div>
+            <div class="map-controls">
+                <button class="btn-primary" onclick="centerMapToCurrentLocation()" style="flex: 1;">
+                    📍 Haritayı Konumuma Ortala
+                </button>
+                <button class="btn-secondary" onclick="fitMapToAddresses()" style="flex: 1;">
+                    🎯 Tüm Adresleri Göster
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p id="loadingText">Yükleniyor...</p>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+
+    <!-- Modal for Photo Preview -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-title">Fotoğraf Önizlemesi</div>
+            <img id="photoPreview" class="camera-preview" src="">
+            <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Çıkarılan Metinler:</div>
+                <textarea id="extractedText" style="width: 100%; height: 150px; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 12px;" readonly></textarea>
+            </div>
+            <div class="button-group" style="margin-top: 15px;">
+                <button class="btn-success" onclick="addExtractedAddresses()" style="flex: 1;">✅ Adresleri Ekle</button>
+                <button class="btn-secondary" onclick="closeModal()" style="flex: 1;">❌ Kapat</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global Variables
+        let addresses = [];
+        let map = null;
+        let markers = [];
+        let polyline = null;
+        let currentLocation = null;
+        let userLocation = null;
+
+        // Initialize Map
+        function initMap() {
+            const mapOptions = {
+                zoom: 13,
+                center: { lat: 39.9334, lng: 32.8597 }, // Ankara merkezi
+                mapTypeId: google.maps.MapTypeId.ROADMAP,
+                styles: [
+                    {
+                        featureType: 'poi',
+                        elementType: 'labels',
+                        stylers: [{ visibility: 'off' }]
+                    }
+                ]
+            };
+
+            map = new google.maps.Map(document.getElementById('map'), mapOptions);
+
+            // Get user location
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(
+                    function(position) {
+                        userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        updateMapCenter();
+                    },
+                    function(error) {
+                        showNotification('Konum alınamadı: ' + error.message, 'error');
+                    }
+                );
+            }
+        }
+
+        // Get GPS Location
+        function getGPS() {
+            if (!navigator.geolocation) {
+                showNotification('Cihazınız GPS desteklemiyor', 'error');
+                return;
+            }
+
+            showLoading('GPS Konumu Alınıyor...');
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const accuracy = position.coords.accuracy.toFixed(2);
+                    const altitude = position.coords.altitude ? position.coords.altitude.toFixed(2) : 'N/A';
+
+                    document.getElementById('gpsLat').textContent = lat.toFixed(6);
+                    document.getElementById('gpsLng').textContent = lng.toFixed(6);
+                    document.getElementById('gpsAccuracy').textContent = accuracy + ' m';
+                    document.getElementById('gpsAltitude').textContent = altitude + ' m';
+
+                    userLocation = { lat, lng };
+                    updateMapCenter();
+                    hideLoading();
+                    showNotification('Konum başarıyla alındı', 'success');
+                },
+                function(error) {
+                    hideLoading();
+                    showNotification('GPS Hatası: ' + error.message, 'error');
+                }
+            );
+        }
+
+        // Add Address
+        function addAddress() {
+            const addressInput = document.getElementById('addressInput');
+            const customerName = document.getElementById('customerName');
+            const packageCount = document.getElementById('packageCount');
+
+            if (!addressInput.value.trim()) {
+                showNotification('Lütfen adres giriniz', 'error');
+                return;
+            }
+
+            const address = {
+                id: Date.now(),
+                name: customerName.value || 'Adres ' + (addresses.length + 1),
+                address: addressInput.value,
+                packages: parseInt(packageCount.value) || 1,
+                lat: null,
+                lng: null,
+                distance: 0
+            };
+
+            // Geocode address
+            geocodeAddress(address);
+
+            addressInput.value = '';
+            customerName.value = '';
+            packageCount.value = '1';
+        }
+
+        // Geocode Address
+        function geocodeAddress(address) {
+            showLoading('Adres konumu bulunuyor...');
+
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ address: address.address + ', Turkey' }, function(results, status) {
+                hideLoading();
+
+                if (status === google.maps.GeocoderStatus.OK) {
+                    address.lat = results[0].geometry.location.lat();
+                    address.lng = results[0].geometry.location.lng();
+
+                    addresses.push(address);
+                    renderAddresses();
+                    updateMap();
+                    showNotification('Adres başarıyla eklendi', 'success');
+                } else {
+                    showNotification('Adres bulunamadı: ' + status, 'error');
+                }
+            });
+        }
+
+        // Handle Photo Upload
+        function handlePhotoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById('photoPreview');
+                img.src = e.target.result;
+
+                showLoading('Metin çıkarılıyor...');
+                extractTextFromImage(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Extract Text from Image using Tesseract
+        function extractTextFromImage(imageSrc) {
+            Tesseract.recognize(
+                imageSrc,
+                'tur',
+                {
+                    logger: m => console.log(m)
+                }
+            ).then(({ data: { text } }) => {
+                hideLoading();
+                document.getElementById('extractedText').value = text;
+                document.getElementById('modal').classList.add('active');
+                showNotification('Metin başarıyla çıkarıldı', 'success');
+            }).catch(err => {
+                hideLoading();
+                showNotification('Metin çıkarılırken hata: ' + err, 'error');
+            });
+        }
+
+        // Add Extracted Addresses
+        function addExtractedAddresses() {
+            const text = document.getElementById('extractedText').value;
+            const lines = text.split('\n').filter(line => line.trim());
+
+            let addedCount = 0;
+            lines.forEach(line => {
+                if (line.trim().length > 5) {
+                    const address = {
+                        id: Date.now() + Math.random(),
+                        name: 'Adres ' + (addresses.length + addedCount + 1),
+                        address: line.trim(),
+                        packages: 1,
+                        lat: null,
+                        lng: null,
+                        distance: 0
+                    };
+                    geocodeAddress(address);
+                    addedCount++;
+                }
+            });
+
+            closeModal();
+            showNotification(addedCount + ' adres eklendi', 'success');
+        }
+
+        // Render Addresses
+        function renderAddresses() {
+            const listContainer = document.getElementById('addressList');
+
+            if (addresses.length === 0) {
+                listContainer.innerHTML = '<div class="no-addresses"><p>Henüz adres eklenmemiştir</p></div>';
+                document.getElementById('totalAddresses').textContent = '0';
+                document.getElementById('totalDistance').textContent = '0 km';
+                return;
+            }
+
+            let totalDistance = 0;
+            addresses.forEach((addr, index) => {
+                totalDistance += addr.distance;
+            });
+
+            listContainer.innerHTML = addresses.map((addr, index) => `
+                <div class="address-item" id="addr-${addr.id}">
+                    <div class="address-header">
+                        <div class="address-order">${index + 1}</div>
+                        <div class="address-text">
+                            <div class="address-name">${addr.name}</div>
+                            <div class="address-details">${addr.address}</div>
+                            <div class="address-details">📦 ${addr.packages} paket</div>
+                        </div>
+                        ${addr.distance > 0 ? `<div class="distance-info">${addr.distance.toFixed(2)} km</div>` : ''}
+                    </div>
+                    <div class="address-controls">
+                        <button class="btn-small btn-secondary" onclick="editAddress(${addr.id})">✏️ Düzenle</button>
+                        <button class="btn-small btn-secondary" onclick="showOnMap(${addr.id})">🗺️ Harita</button>
+                        <button class="btn-small btn-danger" onclick="deleteAddress(${addr.id})">🗑️ Sil</button>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('totalAddresses').textContent = addresses.length;
+            document.getElementById('totalDistance').textContent = totalDistance.toFixed(2) + ' km';
+        }
+
+        // Optimize Route
+        function optimizeRoute() {
+            if (addresses.length < 2) {
+                showNotification('En az 2 adres gereklidir', 'error');
+                return;
+            }
+
+            showLoading('Rota optimize ediliyor...');
+
+            // Start from user location
+            let startPoint = userLocation || addresses[0];
+            let remaining = [...addresses];
+
+            if (userLocation) {
+                remaining = addresses;
+            } else {
+                remaining = addresses.slice(1);
+            }
+
+            let optimized = [addresses[0]];
+            let currentPoint = addresses[0];
+
+            while (remaining.length > 0) {
+                let nearest = null;
+                let nearestIdx = -1;
+                let minDistance = Infinity;
+
+                remaining.forEach((addr, idx) => {
+                    const distance = google.maps.geometry.spherical.computeDistanceBetween(
+                        new google.maps.LatLng(currentPoint.lat, currentPoint.lng),
+                        new google.maps.LatLng(addr.lat, addr.lng)
+                    ) / 1000; // Convert to km
+
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearest = addr;
+                        nearestIdx = idx;
+                    }
+                });
+
+                if (nearest) {
+                    nearest.distance = minDistance;
+                    optimized.push(nearest);
+                    remaining.splice(nearestIdx, 1);
+                    currentPoint = nearest;
+                }
+            }
+
+            addresses = optimized;
+            renderAddresses();
+            updateMap();
+            hideLoading();
+            showNotification('Rota optimize edildi!', 'success');
+        }
+
+        // Update Map
+        function updateMap() {
+            // Clear existing markers
+            markers.forEach(marker => marker.setMap(null));
+            markers = [];
+
+            // Clear existing polyline
+            if (polyline) polyline.setMap(null);
+
+            if (addresses.length === 0) return;
+
+            // Add markers
+            addresses.forEach((addr, index) => {
+                const marker = new google.maps.Marker({
+                    position: { lat: addr.lat, lng: addr.lng },
+                    map: map,
+                    title: (index + 1) + '. ' + addr.name,
+                    label: (index + 1).toString(),
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: index === 0 ? '#51cf66' : '#667eea',
+                        fillOpacity: 1,
+                        strokeColor: '#fff',
+                        strokeWeight: 2
+                    }
+                });
+
+                marker.addListener('click', function() {
+                    showOnMap(addr.id);
+                });
+
+                markers.push(marker);
+            });
+
+            // Draw route polyline
+            const routePath = addresses.map(addr => ({
+                lat: addr.lat,
+                lng: addr.lng
+            }));
+
+            polyline = new google.maps.Polyline({
+                path: routePath,
+                geodesic: true,
+                strokeColor: '#667eea',
+                strokeOpacity: 0.7,
+                strokeWeight: 3,
+                map: map
+            });
+
+            fitMapToAddresses();
+        }
+
+        // Fit Map to Addresses
+        function fitMapToAddresses() {
+            if (addresses.length === 0) return;
+
+            const bounds = new google.maps.LatLngBounds();
+            addresses.forEach(addr => {
+                bounds.extend(new google.maps.LatLng(addr.lat, addr.lng));
+            });
+
+            map.fitBounds(bounds);
+        }
+
+        // Center Map
+        function centerMapToCurrentLocation() {
+            if (userLocation) {
+                map.setCenter(userLocation);
+                map.setZoom(15);
+            } else {
+                getGPS();
+            }
+        }
+
+        // Show on Map
+        function showOnMap(addressId) {
+            const address = addresses.find(a => a.id === addressId);
+            if (address && address.lat && address.lng) {
+                map.setCenter({ lat: address.lat, lng: address.lng });
+                map.setZoom(16);
+            }
+        }
+
+        // Delete Address
+        function deleteAddress(addressId) {
+            addresses = addresses.filter(a => a.id !== addressId);
+            renderAddresses();
+            updateMap();
+            showNotification('Adres silindi', 'success');
+        }
+
+        // Edit Address
+        function editAddress(addressId) {
+            const address = addresses.find(a => a.id === addressId);
+            if (address) {
+                document.getElementById('addressInput').value = address.address;
+                document.getElementById('customerName').value = address.name;
+                document.getElementById('packageCount').value = address.packages;
+                deleteAddress(addressId);
+            }
+        }
+
+        // Clear All
+        function clearAllAddresses() {
+            if (confirm('Tüm adresleri silmek istediğinize emin misiniz?')) {
+                addresses = [];
+                renderAddresses();
+                updateMap();
+                markers.forEach(m => m.setMap(null));
+                markers = [];
+                if (polyline) polyline.setMap(null);
+                showNotification('Tüm adresler silindi', 'success');
+            }
+        }
+
+        // Utility Functions
+        function updateMapCenter() {
+            if (userLocation) {
+                map.setCenter(userLocation);
+            }
+        }
+
+        function showLoading(text = 'Yükleniyor...') {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loading').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.remove('active');
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = 'notification active ' + type;
+
+            setTimeout(() => {
+                notification.classList.remove('active');
+            }, 3000);
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', function() {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initMap);
+            } else {
+                initMap();
+            }
+        });
+    </script>
+</body>
+</html>
